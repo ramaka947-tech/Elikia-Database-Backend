@@ -47,6 +47,8 @@ src/
   db.js                           Rama (partagé)
   middlewares/auth.js             Rama (partagé)
   routes/auth.routes.js           Rama
+  routes/users.routes.js          Rama
+  routes/lists.routes.js          Rama (P1)
   routes/search.routes.js         Assane
   routes/companies.routes.js      Abdoulaye
   routes/sectors.routes.js        Abdoulaye
@@ -69,8 +71,11 @@ Le frontend se base sur ce tableau. Si tu changes une route ou le format d'une r
 
 | Méthode | Route | Accès | Responsable | Rôle |
 |---|---|---|---|---|
-| POST | `/api/auth/login` | public | Rama | Connexion, renvoie `{ token, user }` |
+| POST | `/api/auth/register` | public | Rama | Inscription (toujours en USER), renvoie `{ token, user }` |
+| POST | `/api/auth/login` | public | Rama | Connexion, renvoie `{ token, user }`. Avec `adminOnly: true` (page `/admin/login`), refuse les comptes USER |
 | GET | `/api/auth/me` | connecté | Rama | Utilisateur courant |
+| PATCH | `/api/auth/me` | connecté | Rama | Modifier son nom `{ name }` |
+| PATCH | `/api/auth/password` | connecté | Rama | Changer son mot de passe `{ currentPassword, newPassword }` |
 | GET | `/api/companies?q=&sector=&region=&city=&legal_form=&size=&status=&has_website=&has_email=&has_phone=&min_confidence=&page=&limit=` | connecté | Assane | Recherche + filtres + pagination, renvoie `{ data, total, page, limit }` |
 | GET | `/api/companies/export?...mêmes filtres` | connecté | Assane | Export CSV des résultats filtrés |
 | GET | `/api/companies/:id` | connecté | Abdoulaye | Fiche complète (avec dirigeants et secteur) |
@@ -81,6 +86,17 @@ Le frontend se base sur ce tableau. Si tu changes une route ou le format d'une r
 | GET | `/api/sectors` | connecté | Abdoulaye | Liste des secteurs et sous-secteurs |
 | POST | `/api/import` | ADMIN | Sophiatou | Import CSV (champ `file`), renvoie `{ imported, duplicates, errors: [{ line, message }] }` |
 | GET | `/api/stats` | connecté | Sophiatou | `{ total, topSectors, topCities, updatedLast30Days }` |
+| GET | `/api/users` (`?role=ADMIN` possible) | ADMIN | Rama | Liste des comptes |
+| POST | `/api/users/admins` | ADMIN | Rama | Créer un compte administrateur `{ name, email, password }` |
+| DELETE | `/api/users/:id` | ADMIN | Rama | Supprimer un compte (pas soi-même, pas le dernier admin) |
+| GET | `/api/lists` | connecté | Rama | Mes listes avec le nombre d'entreprises |
+| POST | `/api/lists` | connecté | Rama | Créer une liste `{ name }` |
+| GET | `/api/lists/:id` | connecté | Rama | Une liste et ses entreprises |
+| PATCH | `/api/lists/:id` | connecté | Rama | Renommer `{ name }` |
+| DELETE | `/api/lists/:id` | connecté | Rama | Supprimer une liste |
+| POST | `/api/lists/:id/companies` | connecté | Rama | Ajouter une entreprise `{ companyId }` |
+| DELETE | `/api/lists/:id/companies/:companyId` | connecté | Rama | Retirer une entreprise |
+| GET | `/api/lists/company/:companyId` | connecté | Rama | Ids de mes listes qui contiennent cette entreprise |
 
 Le token JWT est envoyé dans l'en-tête : `Authorization: Bearer <token>`.
 
@@ -112,7 +128,7 @@ npm run dev               # http://localhost:5000
 
 Vérification : http://localhost:5000/api/health doit afficher `{"status":"ok"}`.
 
-**Uniquement Rama, une seule fois :** exécuter `sql/schema.sql` puis `sql/seed_sectors.sql` dans le SQL Editor de Neon, puis `npm run create-admin`.
+**Uniquement Rama, une seule fois :** `npm run init-db` (crée les tables et les secteurs) puis `npm run create-admin`.
 
 ### Variables d'environnement (`.env`)
 
@@ -131,7 +147,7 @@ Vérification : http://localhost:5000/api/health doit afficher `{"status":"ok"}`
 | Rôle | Email | Mot de passe |
 |---|---|---|
 | ADMIN | admin@elikia.sn | Admin123! |
-| USER | à compléter | à compléter |
+| USER | user@elikia.sn | User123! (créé par `npm run create-user`) |
 
 ---
 
