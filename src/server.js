@@ -13,7 +13,11 @@ import statsRoutes from './routes/stats.routes.js';
 dotenv.config();
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL }));
+const allowedOrigins = [
+  'http://localhost:5173',
+  process.env.CLIENT_URL?.replace(/\/$/, ''),
+].filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
