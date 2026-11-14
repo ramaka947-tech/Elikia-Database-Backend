@@ -17,12 +17,19 @@ import messagesRoutes from './routes/messages.routes.js';
 dotenv.config();
 const app = express();
 
+// Sites autorisés à appeler l'API :
+// - le site local et l'adresse principale (CLIENT_URL, plusieurs possibles séparées par des virgules)
+// - les adresses de test Vercel de CE projet et de CETTE équipe uniquement
+//   (ex : elikia-database-frontend-git-main-ramaka947-techs-projects.vercel.app)
 const allowedOrigins = [
   'http://localhost:5173',
-  process.env.CLIENT_URL?.replace(/\/$/, ''),
+  'http://localhost:4173', // npm run preview (test de l'installation PWA)
+  ...(process.env.CLIENT_URL || '').split(',').map((u) => u.trim().replace(/\/$/, '')),
 ].filter(Boolean);
+const vercelPreview = /^https:\/\/elikia-database-frontend(-[a-z0-9-]+-ramaka947-techs-projects)?\.vercel\.app$/;
+const isAllowed = (origin) => !origin || allowedOrigins.includes(origin) || vercelPreview.test(origin);
 // exposedHeaders : permet au frontend de lire le nom des fichiers Excel exportés
-app.use(cors({ origin: allowedOrigins, exposedHeaders: ['Content-Disposition'] }));
+app.use(cors({ origin: (origin, done) => done(null, isAllowed(origin)), exposedHeaders: ['Content-Disposition'] }));
 app.use(express.json());
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
