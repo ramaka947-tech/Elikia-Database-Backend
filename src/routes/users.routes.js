@@ -4,6 +4,8 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import pool from '../db.js';
 import { verifyToken, requireAdmin } from '../middlewares/auth.js';
+import { sendMailInBackground } from '../utils/mailer.js';
+import { adminCreatedEmail } from '../utils/emailTemplates.js';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -53,6 +55,11 @@ router.post('/admins', async (req, res, next) => {
       `insert into users (name, email, password_hash, role) values ($1, $2, $3, 'ADMIN') returning ${FIELDS}`,
       [name, email, hash]
     );
+
+    // Email au nouvel administrateur (sans le mot de passe)
+    const creator = await pool.query('select name from users where id = $1', [req.user.id]);
+    sendMailInBackground(adminCreatedEmail(rows[0], creator.rows[0]?.name));
+
     res.status(201).json(rows[0]);
   } catch (err) {
     next(err);

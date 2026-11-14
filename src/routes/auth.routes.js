@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../db.js';
 import { verifyToken } from '../middlewares/auth.js';
+import { sendMailInBackground } from '../utils/mailer.js';
+import { welcomeEmail } from '../utils/emailTemplates.js';
 
 const router = Router();
 
@@ -46,6 +48,7 @@ router.post('/register', async (req, res, next) => {
       [name, email, hash]
     );
 
+    sendMailInBackground(welcomeEmail(rows[0])); // email de bienvenue (n'empêche jamais l'inscription)
     res.status(201).json({ token: makeToken(rows[0]), user: rows[0] });
   } catch (err) {
     next(err);
