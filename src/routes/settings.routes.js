@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import { verifyToken, requireAdmin } from '../middlewares/auth.js';
+import { checkEmail, checkSenegalPhone, checkSocialUrl, formatSenegalPhone } from '../utils/validation.js';
 
 const router = Router();
 
@@ -39,17 +40,13 @@ router.put('/', verifyToken, requireAdmin, async (req, res, next) => {
     const values = {};
     for (const key of KEYS) values[key] = String(req.body[key] ?? '').trim();
 
-    if (values.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.contact_email)) {
-      return res.status(400).json({ message: "L'adresse email n'est pas valide" });
-    }
-    if (values.contact_phone && !/^\+?[0-9 ().-]{6,20}$/.test(values.contact_phone)) {
-      return res.status(400).json({ message: "Le numéro de téléphone n'est pas valide" });
-    }
-    for (const key of URL_KEYS) {
-      if (values[key] && !/^https:\/\/\S+$/.test(values[key])) {
-        return res.status(400).json({ message: 'Les liens des réseaux sociaux doivent commencer par https://' });
-      }
-    }
+    // Tous les champs sont facultatifs, mais un champ rempli doit être correct
+    const problem =
+      (values.contact_email && checkEmail(values.contact_email)) ||
+      (values.contact_phone && checkSenegalPhone(values.contact_phone)) ||
+      URL_KEYS.map((k) => checkSocialUrl(k, values[k])).find(Boolean);
+    if (problem) return res.status(400).json({ message: problem });
+    if (values.contact_phone) values.contact_phone = formatSenegalPhone(values.contact_phone);
 
     for (const key of KEYS) {
       await pool.query(

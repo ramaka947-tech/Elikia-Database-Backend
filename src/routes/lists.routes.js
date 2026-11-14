@@ -27,6 +27,8 @@ function readListBody(body) {
   const name = body.name?.trim();
   const description = body.description?.trim() || null;
   if (!name) return { error: 'Le nom de la liste est obligatoire' };
+  if (name.length < 2) return { error: 'Le nom de la liste doit contenir au moins 2 caractères' };
+  if (!/\p{L}/u.test(name)) return { error: 'Le nom de la liste doit contenir au moins une lettre' };
   if (name.length > 80) return { error: 'Nom trop long (80 caractères maximum)' };
   if (description && description.length > 200) return { error: 'Description trop longue (200 caractères maximum)' };
   return { name, description };
