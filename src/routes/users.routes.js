@@ -6,6 +6,7 @@ import pool from '../db.js';
 import { verifyToken, requireAdmin } from '../middlewares/auth.js';
 import { sendMailInBackground } from '../utils/mailer.js';
 import { adminCreatedEmail } from '../utils/emailTemplates.js';
+import { checkName, checkEmail, checkPassword } from '../utils/validation.js';
 
 const router = Router();
 router.use(verifyToken, requireAdmin);
@@ -43,9 +44,8 @@ router.post('/admins', async (req, res, next) => {
     const email = req.body.email?.trim().toLowerCase();
     const password = req.body.password || '';
 
-    if (!name || !email || !password) return res.status(400).json({ message: 'Nom, email et mot de passe requis' });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: 'Email invalide' });
-    if (password.length < 8) return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
+    const problem = checkName(name) || checkEmail(email) || checkPassword(password);
+    if (problem) return res.status(400).json({ message: problem });
 
     const exists = await pool.query('select 1 from users where email = $1', [email]);
     if (exists.rowCount > 0) return res.status(409).json({ message: 'Un compte existe déjà avec cet email' });

@@ -6,6 +6,7 @@ import pool from '../db.js';
 import { verifyToken } from '../middlewares/auth.js';
 import { sendMailInBackground } from '../utils/mailer.js';
 import { welcomeEmail } from '../utils/emailTemplates.js';
+import { checkName, checkEmail, checkPassword } from '../utils/validation.js';
 
 const router = Router();
 
@@ -25,19 +26,12 @@ router.post('/register', async (req, res, next) => {
     const email = req.body.email?.trim().toLowerCase();
     const password = req.body.password || '';
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: 'Nom, email et mot de passe requis' });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({ message: 'Email invalide' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
-    }
+    const problem = checkName(name) || checkEmail(email) || checkPassword(password);
+    if (problem) return res.status(400).json({ message: problem });
 
     const exists = await pool.query('select 1 from users where email = $1', [email]);
     if (exists.rowCount > 0) {
-      return res.status(409).json({ message: 'Un compte existe déjà avec cet email' });
+      return res.status(409).json({ message: 'Un compte existe déjà avec cette adresse email. Connectez-vous.' });
     }
 
     const hash = await bcrypt.hash(password, 10);
@@ -62,13 +56,17 @@ router.post('/login', async (req, res, next) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
-      return res.status(400).json({ message: 'Email et mot de passe requis' });
+      return res.status(400).json({ message: "L'email et le mot de passe sont obligatoires." });
     }
 
-    const { rows } = await pool.query('select * from users where email = $1', [email.trim().toLowerCase()]);
+    // Messages précis : compte inexistant (ou supprimé) / mot de passe faux
+    const { rows } = await pool.query('select * from users where email = $1', [String(email).trim().toLowerCase()]);
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
+    if (!user) {
+      return res.status(401).json({ message: "Aucun compte n'est associé à cette adresse email." });
+    }
+    if (!(await bcrypt.compare(password, user.password_hash))) {
+      return res.status(401).json({ message: 'Mot de passe incorrect.' });
     }
 
     // Chaque espace n'accepte que son type de compte
@@ -109,7 +107,8 @@ router.get('/me', verifyToken, async (req, res, next) => {
 router.patch('/me', verifyToken, async (req, res, next) => {
   try {
     const name = req.body.name?.trim();
-    if (!name) return res.status(400).json({ message: 'Le nom est obligatoire' });
+    const problem = checkName(name);
+    if (problem) return res.status(400).json({ message: problem });
     const { rows } = await pool.query(
       'update users set name = $1 where id = $2 returning id, name, email, role, created_at',
       [name, req.user.id]
@@ -127,8 +126,10 @@ router.patch('/password', verifyToken, async (req, res, next) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ message: 'Ancien et nouveau mot de passe requis' });
     }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
+    const problem = checkPassword(newPassword);
+    if (problem) return res.status(400).json({ message: problem });
+    if (newPassword === currentPassword) {
+      return res.status(400).json({ message: "Le nouveau mot de passe doit être différent de l'actuel." });
     }
 
     const { rows } = await pool.query('select password_hash from users where id = $1', [req.user.id]);

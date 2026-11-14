@@ -84,7 +84,8 @@ router.post('/conversations', async (req, res, next) => {
   try {
     if (isAdmin(req)) return res.status(403).json({ message: 'Les administrateurs répondent aux discussions des utilisateurs' });
     const subject = String(req.body.subject ?? '').trim();
-    if (!subject) return res.status(400).json({ message: 'Le sujet est obligatoire' });
+    if (subject.length < 3) return res.status(400).json({ message: 'Le sujet doit contenir au moins 3 caractères' });
+    if (!/\p{L}/u.test(subject)) return res.status(400).json({ message: 'Le sujet doit contenir au moins une lettre' });
     if (subject.length > 150) return res.status(400).json({ message: 'Le sujet ne doit pas dépasser 150 caractères' });
     const { body, error } = cleanBody(req.body.body);
     if (error) return res.status(400).json({ message: error });
