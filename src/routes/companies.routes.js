@@ -123,9 +123,10 @@ router.get('/:id', verifyToken, async (req, res, next) => {
   const { id } = req.params;
   try {
     const companyResult = await pool.query(
-      `SELECT c.*, s.name AS sector_name
+      `SELECT c.*, s.name AS sector_name, u.name AS updated_by_name
        FROM companies c
        LEFT JOIN sectors s ON c.sector_id = s.id
+       LEFT JOIN users u ON c.updated_by = u.id
        WHERE c.id = $1`,
       [id]
     );
@@ -200,6 +201,7 @@ router.put('/:id', verifyToken, requireAdmin, async (req, res, next) => {
       `UPDATE companies SET
          ${sets.join(', ')},
          verified_at = COALESCE($${n + 1}, NOW()),
+         updated_at = NOW(),
          updated_by = $${n + 2}
        WHERE id = $${n + 3}
        RETURNING *`,
@@ -223,7 +225,7 @@ router.patch('/:id/archive', verifyToken, requireAdmin, async (req, res, next) =
 
   try {
     const result = await pool.query(
-      `UPDATE companies SET status = 'inactif', verified_at = NOW(), updated_by = $1 WHERE id = $2 RETURNING *`,
+      `UPDATE companies SET status = 'inactif', verified_at = NOW(), updated_at = NOW(), updated_by = $1 WHERE id = $2 RETURNING *`,
       [updatedBy, id]
     );
 
