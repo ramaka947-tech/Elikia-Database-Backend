@@ -28,7 +28,12 @@ function receiveFile(req, res, next) {
 }
 
 // Lit les secteurs une fois pour toutes : nom -> id
+// Crée le secteur « Autres » s'il n'existe pas : il reçoit les entreprises au secteur inconnu.
 async function loadSectors(db) {
+  await db.query(
+    `insert into sectors (name)
+     select 'Autres' where not exists (select 1 from sectors where parent_id is null and lower(name) = 'autres')`
+  );
   const { rows } = await db.query('select id, name, parent_id from sectors');
   const parents = new Map();
   const children = new Map();
@@ -36,7 +41,7 @@ async function loadSectors(db) {
     if (s.parent_id === null) parents.set(normalize(s.name), s.id);
     else children.set(`${s.parent_id}|${normalize(s.name)}`, s.id);
   }
-  return { parents, children };
+  return { parents, children, otherId: parents.get('autres') };
 }
 
 // NINEA et raisons sociales déjà présents en base (archivés compris)
