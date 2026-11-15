@@ -61,6 +61,22 @@ function parseUrl(text) {
   }
 }
 
+// Cherche un secteur : nom exact, puis nom qui contient le mot (ou l'inverse), puis sous-secteur.
+// Renvoie { parentId } ou { parentId, childId }, ou null si rien ne correspond.
+function findSector(name, sectors) {
+  const n = normalize(name);
+  if (sectors.parents.has(n)) return { parentId: sectors.parents.get(n) };
+
+  const words = (t) => t.split(/[^a-z0-9]+/).filter((w) => w.length > 3 && w !== 'autres');
+  const close = [...sectors.parents].filter(([p]) => p.includes(n) || n.includes(p) || words(n).some((w) => words(p).includes(w)));
+  if (close.length === 1) return { parentId: close[0][1] };
+
+  for (const [key, id] of sectors.children) {
+    if (key.split('|')[1] === n) return { parentId: Number(key.split('|')[0]) || key.split('|')[0], childId: id };
+  }
+  return null;
+}
+
 // sectors = { parents: Map(nom normalisé -> id), children: Map("idParent|nom normalisé" -> id) }
 export function validateRow(raw, sectors) {
   const problems = [];
@@ -115,24 +131,30 @@ export function validateRow(raw, sectors) {
     else problems.push('verified_at invalide (format AAAA-MM-JJ ou JJ/MM/AAAA)');
   }
 
-  // --- Score de confiance : entier de 0 à 100 ---
+  // --- Score de confiance : 0 à 100 ---
+  // Accepte 85, 85.0, 85,5, 85 % et aussi 0.85 (proportion, convertie en 85)
   if (d.confidence_score) {
-    if (/^\d{1,3}$/.test(d.confidence_score) && +d.confidence_score <= 100) {
-      d.confidence_score = Number(d.confidence_score);
+    const n = Number(d.confidence_score.replace('%', '').replace(',', '.').trim());
+    if (Number.isFinite(n) && n >= 0 && n <= 100) {
+      d.confidence_score = Math.round(n > 0 && n <= 1 && /[.,]/.test(d.confidence_score) ? n * 100 : n);
     } else {
-      problems.push('confidence_score doit être un entier entre 0 et 100');
+      problems.push(`confidence_score doit être un nombre entre 0 et 100 (reçu : « ${d.confidence_score} »)`);
     }
   }
 
-  // --- Secteur : doit exister dans la table sectors ---
+  // --- Secteur : doit correspondre à la table sectors ---
+  // Accepte le nom exact, un nom proche (« Agroalimentaire » -> « Agriculture et agroalimentaire »)
+  // ou directement un sous-secteur (« Pêche » -> secteur parent + sous-secteur).
   d.sector_id = null;
   if (d.sector) {
-    const parentId = sectors.parents.get(normalize(d.sector));
-    if (!parentId) {
+    const found = findSector(d.sector, sectors);
+    if (!found) {
       problems.push(`secteur inconnu : « ${d.sector} »`);
+    } else if (found.childId) {
+      d.sector_id = found.childId;
     } else {
       // Sous-secteur inconnu : on garde le secteur principal (pas d'erreur)
-      d.sector_id = (d.sub_sector && sectors.children.get(`${parentId}|${normalize(d.sub_sector)}`)) || parentId;
+      d.sector_id = (d.sub_sector && sectors.children.get(`${found.parentId}|${normalize(d.sub_sector)}`)) || found.parentId;
     }
   } else if (d.sub_sector) {
     problems.push('sub_sector renseigné sans sector');
